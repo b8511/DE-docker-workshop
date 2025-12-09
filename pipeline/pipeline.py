@@ -1,5 +1,5 @@
 import sys
-import pd
+import pandas as pd
 
 
 sys.argv
