@@ -43,7 +43,7 @@ parse_dates = ["tpep_pickup_datetime", "tpep_dropoff_datetime"]
 @click.option("--year", default=2021, type=int, help="Year of the data")
 @click.option("--month", default=1, type=int, help="Month of the data")
 @click.option("--chunksize", default=100000, type=int, help="Chunk size for ingestion")
-@click.option("--target-table", default="yellow_taxi_data", help="Target table name")
+@click.option("--target-table", default="green_taxi_data", help="Target table name")
 def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, chunksize, target_table):
     prefix = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow"
 
@@ -51,28 +51,31 @@ def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, chunksize, targe
 
     engine = create_engine(f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}")
 
-    df_iter = pd.read_csv(
-        url,
-        dtype=dtype,
-        parse_dates=parse_dates,
-        iterator=True,
-        chunksize=chunksize,
-    )
+    parquet_file = f"green_tripdata_{year}-{month:02d}.parquet"
+
+    # Read parquet in chunks to avoid memory issues
+    import pyarrow.parquet as pq
+
+    parquet_file_obj = pq.ParquetFile(parquet_file)
 
     first = True
-    for df_chunk in tqdm(df_iter):
+    for batch in tqdm(parquet_file_obj.iter_batches(batch_size=chunksize)):
+        df_chunk = batch.to_pandas()
         if first:
-            df_chunk.head(0).to_sql(
+            df_chunk.to_sql(
                 name=target_table,
                 con=engine,
                 if_exists="replace",
+                index=False,
             )
             first = False
-        df_chunk.to_sql(
-            name=target_table,
-            con=engine,
-            if_exists="append",
-        )
+        else:
+            df_chunk.to_sql(
+                name=target_table,
+                con=engine,
+                if_exists="append",
+                index=False,
+            )
 
 
 if __name__ == "__main__":

@@ -8,5 +8,6 @@ COPY pyproject.toml .python-version uv.lock ./
 RUN uv sync --locked
 
 COPY ingest_data.py .
+COPY *.parquet .
 
 ENTRYPOINT ["python", "ingest_data.py"]
